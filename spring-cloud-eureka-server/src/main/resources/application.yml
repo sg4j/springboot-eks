@@ -1,0 +1,26 @@
+server:
+  port: ${port:8761}
+
+spring:
+  application:
+    name: spring-eureka-server 
+    
+eureka:
+  instance:
+    hostname: ${hostname:localhost}
+    leaseRenewalIntervalInSeconds: 5
+    statusPageUrlPath: /info
+    healthCheckUrlPath: /health
+    instanceId: ${spring.application.name}:${random.value}
+        
+  client:
+    registerWithEureka: false
+    fetchRegistry: false
+    serviceUrl:
+      defaultZone: http://${eureka.instance.hostname}:8761/eureka/
+      
+logging:
+  level:
+    root: WARN
+    org.springframework.web: DEBUG
+  path: logs/${spring.application.name}_${eureka.instance.hostname}

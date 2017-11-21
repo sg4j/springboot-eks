@@ -1,0 +1,11 @@
+server:
+  port: ${port:8763}
+
+spring:
+  application:
+    name: spring-zuul-server
+  profiles:
+      active: dev
+  cloud:
+    config:
+      uri: ${config-server-url:http://localhost:8762}
