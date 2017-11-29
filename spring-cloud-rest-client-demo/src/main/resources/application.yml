@@ -6,7 +6,7 @@ eureka:
     instanceId: ${spring.application.name}:${random.value}
   client:
     serviceUrl:
-      defaultZone: ${eureka-url}
+      defaultZone: http://${eurekaServerName:localhost}:${eurekaServerPort:80}/eureka/
       
 logging:
   level:
@@ -15,6 +15,6 @@ logging:
   path: logs/${spring.application.name}_${server.port}
   
       
-zuul.url: ${zuul-url}
+zuul.url: http://${zuulServerName:localhost}:${zuulServerPort:80}/
 
 management.security.enabled: false
