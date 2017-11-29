@@ -1,5 +1,7 @@
 package org.apache.model;
 
+import org.springframework.beans.factory.annotation.Value;
+
 public class Product {
 
 	public Product(){
@@ -42,4 +44,5 @@ public class Product {
 	private String name;
 
     private int weight;
+
 }
