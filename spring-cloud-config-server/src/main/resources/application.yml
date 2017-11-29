@@ -2,8 +2,7 @@ logging:
   level:
     root: WARN
     org.springframework: ERROR
-    #org.springframework.boot.env.PropertySourcesLoader: TRACE
     org.springframework.cloud.config.server: DEBUG
   path: logs/${spring.application.name}_${server.port}
-  
+
 management.security.enabled: false
