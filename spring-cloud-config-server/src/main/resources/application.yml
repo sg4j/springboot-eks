@@ -1,8 +1,22 @@
-logging:
-  level:
-    root: WARN
-    org.springframework: ERROR
-    org.springframework.cloud.config.server: DEBUG
-  path: logs/${spring.application.name}_${server.port}
+spring:
+  profiles: default, local
+  cloud:
+    config:
+      server:
+        git:
+          uri: https://github.com/sg4j/spring-cloud-on-aws-config-localhost
+          repos:
+            - patterns: multi-repo-demo-*
+              uri: https://github.com/sg4j/spring-cloud-on-aws-config-localhost
 
-management.security.enabled: false
+---
+spring:
+  profiles: aws
+  cloud:
+    config:
+      server:
+        git:
+          uri: https://github.com/sg4j/spring-cloud-on-aws-config
+          repos:
+            - patterns: multi-repo-demo-*
+              uri: https://github.com/sg4j/spring-cloud-on-aws-config
