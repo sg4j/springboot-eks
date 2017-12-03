@@ -1,0 +1,231 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+   "Parameters": {
+    "NetworkStackName": {
+      "Description": "Name of an active CloudFormation stack that contains the networking resources, such as the subnet and security group, that will be used in this stack.",
+      "Type": "String",
+      "MinLength" : 1,
+      "MaxLength" : 255,
+      "AllowedPattern" : "^[a-zA-Z][-a-zA-Z0-9]*$",
+      "Default" : "spring-cloud-vpc"
+    },
+    "repoS3Bucket" : {
+      "Type" : "String",
+      "Description": "The S3 bucket where EBS will look for built code"
+    },
+	"applicationName" : {
+      "Type" : "String",
+      "Description": "Name of the Application"
+    },
+	"artifact" : {
+      "Type" : "String",
+      "Description": "The actual JAR/ZIP that will be deployed"
+    },
+	"minInstances" : {
+      "Type" : "String"
+    },
+	"maxInstances" : {
+      "Type" : "String"
+    },
+    "subnetType" : {
+      "Description" : "Subnet Type",
+      "Default" : "private",
+      "Type" : "String",
+      "AllowedValues" : ["private", "public"],
+      "ConstraintDescription" : "Must specify the subnet where this stack will be created"
+    }
+  },
+  "Conditions" : {
+    "CreateInPublicSubnet" : {"Fn::Equals" : [{"Ref" : "subnetType"}, "public"]},
+    "CreateInPrivateSubnet" : {"Fn::Equals" : [{"Ref" : "subnetType"}, "private"]}
+  },
+  "Resources": {
+    "SpringBootApplication": {
+      "Type": "AWS::ElasticBeanstalk::Application",
+      "Properties": {
+        "Description":"Spring boot and elastic beanstalk"
+      }
+    },
+    "SpringBootApplicationVersion": {
+      "Type": "AWS::ElasticBeanstalk::ApplicationVersion",
+      "Properties": {
+        "ApplicationName": {"Ref":"applicationName"},
+        "SourceBundle": {
+                  "S3Bucket": {"Ref":"repoS3Bucket"},
+                  "S3Key": {"Ref":"artifact"}
+        }
+      }
+    },
+    "SpringBootBeanStalkPrivateConfigTemplate": {
+      "Condition": "CreateInPrivateSubnet",
+      "Type": "AWS::ElasticBeanstalk::ConfigurationTemplate",
+      "Properties": {
+        "ApplicationName": {"Ref":"applicationName"},
+        "Description": "Spring Cloud Config Server with Elastic Beanstalk",
+        "OptionSettings": [
+					          {
+							  "Namespace": "aws:ec2:vpc",
+							  "OptionName": "VPCId",
+							  "Value": { "Fn::ImportValue" :  {"Fn::Sub": "${NetworkStackName}-VPCID" } }
+							},
+							{
+							  "Namespace": "aws:ec2:vpc",
+							  "OptionName": "Subnets",
+							  "Value": {
+							  			"Fn::Join" :["," ,
+								  						[{"Fn::ImportValue" :  {"Fn::Sub": "${NetworkStackName}-PrivateSubnet1ID"} },
+								  						 {"Fn::ImportValue" :  {"Fn::Sub": "${NetworkStackName}-PrivateSubnet2ID"} }
+								  						]
+							  						]
+							  			}
+							},
+							{
+							  "Namespace": "aws:ec2:vpc",
+							  "OptionName": "ELBSubnets",
+							  "Value": {
+							  			"Fn::Join" :["," ,
+								  						[{"Fn::ImportValue" :  {"Fn::Sub": "${NetworkStackName}-PrivateSubnet1ID"} },
+								  						 {"Fn::ImportValue" :  {"Fn::Sub": "${NetworkStackName}-PrivateSubnet2ID"} }
+								  						]
+							  						]
+							  			}
+							},
+							{
+							  "Namespace": "aws:ec2:vpc",
+							  "OptionName": "ELBScheme",
+							  "Value": "internal"
+							},
+							{
+							  "Namespace": "aws:autoscaling:launchconfiguration",
+							  "OptionName": "EC2KeyName",
+							  "Value": "sgforaws-keypair"
+							},
+							{
+							  "Namespace": "aws:autoscaling:launchconfiguration",
+							  "OptionName": "ImageId",
+							  "Value": "ami-55ef662f"
+							},
+							{
+							  "Namespace": "aws:autoscaling:launchconfiguration",
+							  "OptionName": "InstanceType",
+							  "Value": "t2.micro"
+							},
+							{
+							  "Namespace": "aws:autoscaling:launchconfiguration",
+							  "OptionName": "SecurityGroups",
+							  "Value": { "Fn::ImportValue" :  {"Fn::Sub": "${NetworkStackName}-PrivateSubnetSSHSecurityGroupID" }}
+							},
+							{
+					            "Namespace": "aws:autoscaling:asg",
+					            "OptionName": "MinSize",
+					            "Value": {"Ref":"minInstances"}
+					         },
+					         {
+					            "Namespace": "aws:autoscaling:asg",
+					            "OptionName": "MaxSize",
+					            "Value": {"Ref":"maxInstances"}
+					         },
+					         {
+					            "Namespace": "aws:elasticbeanstalk:environment",
+					            "OptionName": "EnvironmentType",
+					            "Value": "LoadBalanced"
+					         }
+        		],
+        "SolutionStackName": "64bit Amazon Linux 2017.09 v2.6.0 running Java 8"
+      }
+    },    
+    "SpringBootBeanStalkPublicConfigTemplate": {
+      "Condition": "CreateInPublicSubnet",
+      "Type": "AWS::ElasticBeanstalk::ConfigurationTemplate",
+      "Properties": {
+        "ApplicationName": {"Ref":"applicationName"},
+        "Description": "Spring Cloud Config Server with Elastic Beanstalk",
+        "OptionSettings": [
+					          {
+							  "Namespace": "aws:ec2:vpc",
+							  "OptionName": "VPCId",
+							  "Value": { "Fn::ImportValue" :  {"Fn::Sub": "${NetworkStackName}-VPCID" } }
+							},
+							{
+							  "Namespace": "aws:ec2:vpc",
+							  "OptionName": "Subnets",
+							  "Value": {
+							  			"Fn::Join" :["," ,
+								  						[{"Fn::ImportValue" :  {"Fn::Sub": "${NetworkStackName}-PublicSubnet1ID"} },
+								  						 {"Fn::ImportValue" :  {"Fn::Sub": "${NetworkStackName}-PublicSubnet2ID"} }
+								  						]
+							  						]
+							  			}
+							},
+							{
+							  "Namespace": "aws:ec2:vpc",
+							  "OptionName": "ELBSubnets",
+							  "Value": {
+							  			"Fn::Join" :["," ,
+								  						[{"Fn::ImportValue" :  {"Fn::Sub": "${NetworkStackName}-PublicSubnet1ID"} },
+								  						 {"Fn::ImportValue" :  {"Fn::Sub": "${NetworkStackName}-PublicSubnet2ID"} }
+								  						]
+							  						]
+							  			}
+							},
+							{
+							  "Namespace": "aws:autoscaling:launchconfiguration",
+							  "OptionName": "EC2KeyName",
+							  "Value": "sgforaws-keypair"
+							},
+							{
+							  "Namespace": "aws:autoscaling:launchconfiguration",
+							  "OptionName": "ImageId",
+							  "Value": "ami-55ef662f"
+							},
+							{
+							  "Namespace": "aws:autoscaling:launchconfiguration",
+							  "OptionName": "InstanceType",
+							  "Value": "t2.micro"
+							},
+							{
+							  "Namespace": "aws:autoscaling:launchconfiguration",
+							  "OptionName": "SecurityGroups",
+							  "Value": { "Fn::ImportValue" :  {"Fn::Sub": "${NetworkStackName}-WebDmzHttpSecurityGroupID" }}
+							},
+							{
+					            "Namespace": "aws:autoscaling:asg",
+					            "OptionName": "MinSize",
+					            "Value": {"Ref":"minInstances"}
+					         },
+					         {
+					            "Namespace": "aws:autoscaling:asg",
+					            "OptionName": "MaxSize",
+					            "Value": {"Ref":"maxInstances"}
+					         },
+					         {
+					            "Namespace": "aws:elasticbeanstalk:environment",
+					            "OptionName": "EnvironmentType",
+					            "Value": "LoadBalanced"
+					         }
+        		],
+        "SolutionStackName": "64bit Amazon Linux 2017.09 v2.6.0 running Java 8"
+      }
+    },
+    "SpringBootBeanstalkPrivateEnvironment": {
+      "Condition": "CreateInPrivateSubnet",	
+      "Type": "AWS::ElasticBeanstalk::Environment",
+      "Properties": {
+        "ApplicationName": {"Ref":"applicationName"},
+        "EnvironmentName": {"Fn::Join" : [ "-", [ {"Ref":"applicationName"}, "env"] ]},
+        "TemplateName": {"Ref": "SpringBootBeanStalkPrivateConfigTemplate"},
+        "VersionLabel": {"Ref": "SpringBootApplicationVersion"}
+      }
+    },    
+    "SpringBootBeanstalkPublicEnvironment": {
+      "Condition": "CreateInPublicSubnet",	
+      "Type": "AWS::ElasticBeanstalk::Environment",
+      "Properties": {
+        "ApplicationName": {"Ref":"applicationName"},
+        "EnvironmentName": {"Fn::Join" : [ "-", [ {"Ref":"applicationName"}, "env"] ]},
+        "TemplateName": {"Ref": "SpringBootBeanStalkPublicConfigTemplate"},
+        "VersionLabel": {"Ref": "SpringBootApplicationVersion"}
+      }
+    }
+  }
+}

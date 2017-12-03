@@ -1,0 +1,300 @@
+{
+	"AWSTemplateFormatVersion":"2010-09-09",
+	"Description":"VPC with Multiple EC2 Instances to install Web Applications",
+	"Mappings":{
+	  "Params":{
+	    "SubnetConfig":{
+	      "VPC":"10.0.0.0/16",
+	      "PublicSubnet1":"10.0.1.0/24",
+	      "PrivateSubnet1":"10.0.2.0/24",
+	      "PublicSubnet2":"10.0.3.0/24",
+	      "PrivateSubnet2":"10.0.4.0/24"
+	    },
+	    "EC2":{
+	      "InstanceType": "t2.micro",
+	      "VolumeSize": "8",
+	      "KeyName": "sgforaws-keypair",
+	      "ImageId":  "ami-55ef662f",
+	      "IamInstanceProfile": "s3access",
+	      "DeviceName":"/dev/xvda"
+	    },
+	    "NAT":{
+	      "InstanceType": "t2.micro",
+	      "VolumeSize": "8",
+	      "KeyName": "sgforaws-keypair",
+	      "ImageId":  "ami-184dc970",
+	      "DeviceName":"/dev/xvda"
+	    }
+	  }
+	},
+	"Resources":{
+		"SpringCloudVPC":{
+		  "Type":"AWS::EC2::VPC",
+		  "Properties":{
+		    "CidrBlock" :{"Fn::FindInMap":["Params","SubnetConfig","VPC"]},
+		    "EnableDnsSupport": "true",
+		    "EnableDnsHostnames": "true",
+		    "Tags":[{"Key":"Application", "Value":"WebApplicationStack"},{"Key":"Name", "Value":"SpringCloudVPC"}]
+		  }
+		},
+		  "MyInternetGateway":{
+		    "Type":"AWS::EC2::InternetGateway",
+		    "DependsOn":["SpringCloudVPC"],
+		    "Properties":{
+		      "Tags":[{"Key":"Application", "Value":"WebApplicationStack"},{"Key":"Name", "Value":"MyInternetGateway"}]
+		    }
+		  },
+		  "AttachGateWay":{
+		    "Type":"AWS::EC2::VPCGatewayAttachment",
+		    "DependsOn":["MyInternetGateway"],
+		    "Properties":{
+		      "InternetGatewayId":{"Ref":"MyInternetGateway"},
+		      "VpcId":{"Ref":"SpringCloudVPC"}
+		    }
+		  },
+		  "WebDmzHTTPSecurityGroup" : {
+		   "Type" : "AWS::EC2::SecurityGroup",
+		   "Properties" : {
+		      "GroupDescription" : "Allow http to client host",
+		      "VpcId" : {"Ref" : "SpringCloudVPC"},
+		      "SecurityGroupIngress" : [{
+		            "IpProtocol" : "tcp",
+		            "FromPort" : "80",
+		            "ToPort" : "80",
+		            "CidrIp" : "0.0.0.0/0"
+		         },
+		         {
+		           "IpProtocol" : "tcp",
+		           "FromPort" : "443",
+		           "ToPort" : "443",
+		           "CidrIp" : "0.0.0.0/0"
+		            }],
+		      "SecurityGroupEgress" : [{
+		         "IpProtocol" : "tcp",
+		         "FromPort" : "80",
+		         "ToPort" : "80",
+		         "CidrIp" : "0.0.0.0/0"
+		      },
+		      {
+		         "IpProtocol" : "tcp",
+		         "FromPort" : "443",
+		         "ToPort" : "443",
+		         "CidrIp" : "0.0.0.0/0"
+		      }]
+		   }
+		},
+		"WebDmzSSHSecurityGroup" : {
+		 "Type" : "AWS::EC2::SecurityGroup",
+		 "Properties" : {
+		    "GroupDescription" : "Allow ssh to client host",
+		    "VpcId" : {"Ref" : "SpringCloudVPC"},
+		    "SecurityGroupIngress" : [{
+		          "IpProtocol" : "tcp",
+		          "FromPort" : "22",
+		          "ToPort" : "22",
+		          "CidrIp" : "0.0.0.0/0"
+		       }],
+		      "SecurityGroupEgress": [{
+		         "IpProtocol" : "tcp",
+		         "FromPort" : "22",
+		         "ToPort" : "22",
+		         "CidrIp" : "0.0.0.0/0"
+		          }
+		              ]
+		
+		 }
+		},
+		  "PublicSubnetUSEast1a":{
+		  "Type" : "AWS::EC2::Subnet",
+		  "Properties" : {
+		    "AvailabilityZone" : "us-east-1a",
+		    "CidrBlock" : {"Fn::FindInMap":["Params","SubnetConfig","PublicSubnet1"]},
+		    "MapPublicIpOnLaunch" : true,
+		    "Tags":[{"Key":"Application", "Value":"WebApplicationStack"},{"Key":"Name", "Value":"PublicSubnetUSEast1a"}],
+		    "VpcId" : {"Ref":"SpringCloudVPC"}
+		  }
+		},
+		"PublicSubnetUSEast1b":{
+		  "Type" : "AWS::EC2::Subnet",
+		  "Properties" : {
+		    "AvailabilityZone" : "us-east-1b",
+		    "CidrBlock" : {"Fn::FindInMap":["Params","SubnetConfig","PublicSubnet2"]},
+		    "MapPublicIpOnLaunch" : true,
+		    "Tags":[{"Key":"Application", "Value":"WebApplicationStack"},{"Key":"Name", "Value":"PublicSubnetUSEast1b"}],
+		      "VpcId" : {"Ref":"SpringCloudVPC"}
+		  }
+		},
+		"PrivateSubnetSecurityGroup" : {
+		 "Type" : "AWS::EC2::SecurityGroup",
+		 "DependsOn":["PublicSubnetUSEast1b","PublicSubnetUSEast1b", "WebDmzSSHSecurityGroup"],
+		 "Properties" : {
+		    "GroupDescription" : "Allow ssh to client host",
+		    "VpcId" : {"Ref" : "SpringCloudVPC"},
+		    "SecurityGroupIngress" : [{
+		          "IpProtocol" : "tcp",
+		          "FromPort" : "22",
+		          "ToPort" : "22",
+		          "CidrIp" : {"Fn::FindInMap":["Params","SubnetConfig","PublicSubnet1"]}
+		       }
+		      ]
+		 }
+		},
+		"PrivateSubnetUSEast1a":{
+		  "Type" : "AWS::EC2::Subnet",
+		  "Properties" : {
+		    "AvailabilityZone" : "us-east-1a",
+		    "CidrBlock" : {"Fn::FindInMap":["Params","SubnetConfig","PrivateSubnet1"]},
+		    "Tags":[{"Key":"Application", "Value":"WebApplicationStack"},{"Key":"Name", "Value":"PrivateSubnetUSEast1a"}],
+		      "VpcId" : {"Ref":"SpringCloudVPC"}
+		  }
+		},
+		"PrivateSubnetUSEast1b":{
+		  "Type" : "AWS::EC2::Subnet",
+		  "Properties" : {
+		    "AvailabilityZone" : "us-east-1b",
+		    "CidrBlock" : {"Fn::FindInMap":["Params","SubnetConfig","PrivateSubnet2"]},
+		    "Tags":[{"Key":"Application", "Value":"WebApplicationStack"},{"Key":"Name", "Value":"PrivateSubnetUSEast1b"}],
+		      "VpcId" : {"Ref":"SpringCloudVPC"}
+		  }
+		},
+		  "PublicRoute1":{
+		     "Type" : "AWS::EC2::RouteTable",
+		     "Properties" : {
+		        "VpcId" : {"Ref":"SpringCloudVPC"},
+		        "Tags":[{"Key":"Application", "Value":"WebApplicationStack"},{"Key":"Name", "Value":"PublicRoute1"}]
+		     }
+		  },
+		"PrivateRoute1":{
+		   "Type" : "AWS::EC2::RouteTable",
+		   "Properties" : {
+		      "VpcId" : {"Ref":"SpringCloudVPC"},
+		      "Tags":[{"Key":"Application", "Value":"WebApplicationStack"},{"Key":"Name", "Value":"PrivateRoute1"}]
+		   }
+		},
+		
+		"PublicRoute1PublicSubnet1Association":{
+		   "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+		   "DependsOn":["PublicSubnetUSEast1a","PublicRoute1"],
+		   "Properties" : {
+		      "RouteTableId" : {"Ref":"PublicRoute1"},
+		      "SubnetId" : {"Ref":"PublicSubnetUSEast1a"}
+		   }
+		} ,
+		"PublicRoute1PublicSubnet2Association":{
+		   "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+		   "DependsOn":["PublicSubnetUSEast1b","PublicRoute1"],
+		   "Properties" : {
+		      "RouteTableId" : {"Ref":"PublicRoute1"},
+		      "SubnetId" : {"Ref":"PublicSubnetUSEast1b"}
+		   }
+		},
+		"PublicRoute1toIGW":{
+		  "Type" : "AWS::EC2::Route",
+		  "DependsOn":["MyInternetGateway","PublicRoute1","AttachGateWay","PublicRoute1PublicSubnet1Association", "PublicRoute1PublicSubnet2Association"],
+		  "Properties" : {
+		    "DestinationCidrBlock" : "0.0.0.0/0",
+		    "GatewayId" : {"Ref":"MyInternetGateway"},
+		    "RouteTableId" : {"Ref":"PublicRoute1"}
+		  }
+		},
+		"PrivateRoute1PrivateSubnet1Association":{
+		   "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+		   "DependsOn":["PrivateSubnetUSEast1a","PrivateRoute1"],
+		   "Properties" : {
+		      "RouteTableId" : {"Ref":"PrivateRoute1"},
+		      "SubnetId" : {"Ref":"PrivateSubnetUSEast1a"}
+		   }
+		} ,
+		"PrivateRoute1PrivateSubnet2Association":{
+		   "Type" : "AWS::EC2::SubnetRouteTableAssociation",
+		   "DependsOn":["PrivateSubnetUSEast1b","PrivateRoute1"],
+		   "Properties" : {
+		      "RouteTableId" : {"Ref":"PrivateRoute1"},
+		      "SubnetId" : {"Ref":"PrivateSubnetUSEast1b"}
+		   }
+		},
+		"NATInstance1": {
+		    "Type": "AWS::EC2::Instance",
+		    "DependsOn":["PrivateRoute1PrivateSubnet1Association","PrivateRoute1PrivateSubnet2Association", "PublicRoute1toIGW"],
+		    "Properties": {
+		        "Tags":[{"Key":"Application", "Value":"WebApplicationStack"},{"Key":"Name", "Value":"NATInstance1"}],
+		        "SubnetId": { "Ref":"PublicSubnetUSEast1a" },
+		        "AvailabilityZone":{"Fn::GetAtt":["PublicSubnetUSEast1a", "AvailabilityZone"]},
+		        "SecurityGroupIds": [{ "Fn::GetAtt":["WebDmzHTTPSecurityGroup","GroupId" ]}],
+		        "BlockDeviceMappings": [
+		          {
+		              "DeviceName": { "Fn::FindInMap": [ "Params", "NAT", "DeviceName" ] },
+		              "Ebs": {
+		                "VolumeType" : "gp2",
+		                  "VolumeSize": { "Fn::FindInMap": [ "Params", "NAT", "VolumeSize" ] },
+		                   "DeleteOnTermination" : "true"
+		              }
+		          }
+		        ],
+		        "SourceDestCheck":false,
+		        "KeyName": { "Fn::FindInMap": [ "Params", "NAT", "KeyName" ] },
+		        "ImageId": { "Fn::FindInMap": [ "Params", "NAT", "ImageId" ] },
+		        "InstanceType": { "Fn::FindInMap": [ "Params", "NAT", "InstanceType" ] },
+		        "UserData": { "Fn::Base64": { "Fn::Join": ["", [
+		            "#!/bin/bash -v\n",
+		            "yum -y install wget \n",
+		            "yum -y install java \n",
+		            "yum install -y git \n",
+		            "###################  Proxy Setting  ################### \n"
+		
+		                    ] ] } }
+		    }
+		},
+		"PrivateRoutetoIGW":{
+		  "Type" : "AWS::EC2::Route",
+		  "DependsOn":["PrivateRoute1","NATInstance1"],
+		  "Properties" : {
+		    "DestinationCidrBlock" : "0.0.0.0/0",
+		    "InstanceId" : {"Ref":"NATInstance1"},
+		    "RouteTableId" : {"Ref":"PrivateRoute1"}
+		  }
+		}
+	},
+  "Outputs" : {
+    "VPCId" : {
+      "Description" : "Spring Cloud VPC ID",
+      "Value" :  { "Ref" : "SpringCloudVPC" },
+      "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-VPCID" }}
+    },
+    "PublicSubnet1" : {
+      "Description" : "The subnet ID to use for public web servers",
+      "Value" :  { "Ref" : "PublicSubnetUSEast1a" },
+      "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-PublicSubnet1ID" }}
+    },
+    "PublicSubnet2" : {
+      "Description" : "The subnet ID to use for public web servers",
+      "Value" :  { "Ref" : "PublicSubnetUSEast1b" },
+      "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-PublicSubnet2ID" }}
+    },
+    "PrivateSubnet1" : {
+      "Description" : "The subnet ID to use for protected servers",
+      "Value" :  { "Ref" : "PrivateSubnetUSEast1a" },
+      "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-PrivateSubnet1ID" }}
+    },
+    "PrivateSubnet2" : {
+      "Description" : "The subnet ID to use for protected servers",
+      "Value" :  { "Ref" : "PrivateSubnetUSEast1b" },
+      "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-PrivateSubnet2ID" }}
+    },
+    "WebDmzHTTPSecurityGroup" : {
+      "Description" : "The security group ID to use for http access to public web servers",
+      "Value" :  { "Fn::GetAtt" : ["WebDmzHTTPSecurityGroup", "GroupId"] },
+      "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-WebDmzHttpSecurityGroupID" }}
+    },
+    "WebDmzSSHSecurityGroup" : {
+      "Description" : "The security group ID to use for SSH into public bastion hosts",
+      "Value" :  { "Fn::GetAtt" : ["WebDmzSSHSecurityGroup", "GroupId"] },
+      "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-WebDmzSSHSecurityGroupID" }}
+    },
+    "PrivateSubnetSecurityGroup" : {
+      "Description" : "The security group ID to use for SSH into public bastion hosts",
+      "Value" :  { "Fn::GetAtt" : ["PrivateSubnetSecurityGroup", "GroupId"] },
+      "Export" : { "Name" : {"Fn::Sub": "${AWS::StackName}-PrivateSubnetSSHSecurityGroupID" }}
+    }
+  }
+}
